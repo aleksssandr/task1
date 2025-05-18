@@ -2,6 +2,7 @@ package jm.task.core.jdbc.dao;
 
 import jm.task.core.jdbc.model.User;
 import jm.task.core.jdbc.service.UserServiceImpl;
+import jm.task.core.jdbc.util.SQLQueries;
 import jm.task.core.jdbc.util.Util;
 
 import java.sql.PreparedStatement;
@@ -14,73 +15,88 @@ import java.util.logging.Logger;
 
 public class UserDaoJDBCImpl implements UserDao {
 
-    private static final Logger logger = Logger.getLogger(UserDaoJDBCImpl.class.getName());
-
-    public UserDaoJDBCImpl() {}
-
+    @Override
     public void createUsersTable() {
-        try (Statement statement = Util.getConnection().createStatement()) {
-            statement.executeUpdate("CREATE TABLE IF NOT EXISTS users(\n" +
-                    "    id bigint primary key generated always as identity ,\n" +
-                    "    name varchar(255),\n" +
-                    "    lastname varchar(255),\n" +
-                    "    age smallint\n" +
-                    ")");
-        } catch (SQLException e) {
-            logger.warning(e.getMessage());
-        }
+        Util.jdbcTransaction(conn ->
+        {
+            try {
+                conn.createStatement().executeUpdate(SQLQueries.CREATE_TABLE);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
+    @Override
     public void dropUsersTable() {
-        try (Statement statement = Util.getConnection().createStatement()) {
-            statement.executeUpdate("DROP TABLE IF EXISTS users");
-        } catch (SQLException e) {
-           logger.warning(e.getMessage());
-        }
+        Util.jdbcTransaction(conn ->
+        {
+            try {
+                conn.createStatement().executeUpdate(SQLQueries.DROP_TABLE);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
+    @Override
     public void saveUser(String name, String lastName, byte age) {
-        try (PreparedStatement pstm = Util.getConnection().prepareStatement("INSERT INTO users (name, lastname, age) VALUES (?, ?, ?)")) {
-            pstm.setString(1, name);
-            pstm.setString(2, lastName);
-            pstm.setByte(3, age);
-            pstm.executeUpdate();
-        } catch (SQLException e) {
-            logger.warning(e.getMessage());
-        }
+        Util.jdbcTransaction(conn -> {
+            try (PreparedStatement ps = conn.prepareStatement(SQLQueries.INSERT_USER)) {
+                ps.setString(1, name);
+                ps.setString(2, lastName);
+                ps.setByte(3, age);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
+    @Override
     public void removeUserById(long id) {
-        try (PreparedStatement pstm = Util.getConnection().prepareStatement("DELETE FROM users WHERE id = ?")) {
-            pstm.setLong(1, id);
-            pstm.executeUpdate();
-        } catch (SQLException e) {
-            logger.warning(e.getMessage());
-        }
+        Util.jdbcTransaction(conn -> {
+            try (PreparedStatement ps = conn.prepareStatement(SQLQueries.DELETE_BY_ID)) {
+                ps.setLong(1, id);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
+    @Override
     public List<User> getAllUsers() {
         List<User> users = new ArrayList<>();
 
-        try (ResultSet resultSet = Util.getConnection().createStatement().executeQuery("SELECT * FROM users")) {
-            while (resultSet.next()) {
-                User user = new User(resultSet.getString("name"),
-                        resultSet.getString("lastname"), resultSet.getByte("age"));
-                user.setId(resultSet.getLong("id"));
-                users.add(user);
+        Util.jdbcTransaction(conn -> {
+            try (ResultSet rs = conn.createStatement().executeQuery(SQLQueries.SELECT_ALL)) {
+                while (rs.next()) {
+                    User user = new User(
+                            rs.getString("name"),
+                            rs.getString("lastName"),
+                            rs.getByte("age")
+                    );
+                    user.setId(rs.getLong("id"));
+                    users.add(user);
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
             }
-        } catch (SQLException e) {
-            logger.warning(e.getMessage());
-        }
+        });
 
         return users;
     }
 
+    @Override
     public void cleanUsersTable() {
-        try (Statement statement = Util.getConnection().createStatement()) {
-            statement.executeUpdate("TRUNCATE TABLE users");
-        } catch (SQLException e) {
-            logger.warning(e.getMessage());
-        }
+        Util.jdbcTransaction(conn ->
+        {
+            try {
+                conn.createStatement().executeUpdate(SQLQueries.TRUNCATE_TABLE);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }
